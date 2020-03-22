@@ -13,62 +13,48 @@ class Calculator {
     var arrayOfArguments: [String] = []
     var priorityOperatorIndex: Int = 0
     
-    func CheckParametersInput(){
+    private func CheckParametersInput() throws {
         let argCount = CommandLine.argc
-        var isInputCorrect = true
         for index in 1..<argCount {
             if index % 2 != 0 {
-                if CommandLine.arguments[Int(index)].IsInt {
-                    arrayOfArguments.append(CommandLine.arguments[Int(index)])
+                guard CommandLine.arguments[Int(index)].IsInt else {
+                    throw CalculationError.notNumber(CommandLine.arguments[Int(index)])
                 }
-                else {
-                    print("\(CommandLine.arguments[Int(index)]) is not a number\n")
-                    isInputCorrect = false
-                    consoleIO.printUsage()
-                    return
-                }
+                
+                arrayOfArguments.append(CommandLine.arguments[Int(index)])
             }
             else {
-                if String.IsOperator(operatorArgument: Operators(rawValue: CommandLine.arguments[Int(index)]) ?? Operators.unknown) {
-                    arrayOfArguments.append(CommandLine.arguments[Int(index)])
+                guard String.IsOperator(operatorArgument: Operators(rawValue: CommandLine.arguments[Int(index)]) ?? Operators.unknown) else {
+                    throw CalculationError.notOperator(CommandLine.arguments[Int(index)])
                 }
-                else {
-                    print("\(CommandLine.arguments[Int(index)]) is not an operator\n")
-                    isInputCorrect = false
-                    consoleIO.printUsage()
-                    return
-                }
+                
+                arrayOfArguments.append(CommandLine.arguments[Int(index)])
             }
         }
-        if String.IsOperator(operatorArgument: Operators(rawValue: arrayOfArguments.last ?? Operators.unknown.rawValue) ?? Operators.unknown) {
-            isInputCorrect = false
-            print("Last argument \(arrayOfArguments.last!) must be a number\n")
-            consoleIO.printUsage()
-            return
-        }
-        
-        if isInputCorrect == true {
-            PerformCalculate()
-        }
     }
     
-    private func PerformCalculate() {
-        if PerformHighPriorityCalculation() == false {
-            return
+    func PerformCalculate() throws -> Int{
+        try CheckParametersInput()
+        try PerformHighPriorityCalculation()
+        try PerformLowPriorityCalculatrion()
+        guard arrayOfArguments.count > 0 else {
+            throw CalculationError.outOfBoundException
         }
-        PerformLowPriorityCalculatrion()
-        print("result is \(arrayOfArguments[0])")
+        return (Int(arrayOfArguments[0])!)
     }
     
-    private func PerformLowPriorityCalculatrion() {
+    private func PerformLowPriorityCalculatrion() throws {
         var firstVal: Int
         var secondVal: Int
         var resultInt: Int
         var operatorRawVal: String
         let operatorPosition: Int = 1
         while operatorPosition < arrayOfArguments.count {
-            firstVal = (arrayOfArguments[operatorPosition - 1] as NSString).integerValue
-            secondVal = (arrayOfArguments[operatorPosition + 1] as NSString).integerValue
+            guard arrayOfArguments.count > 2 else {
+                throw CalculationError.notEnoughParameters
+            }
+            firstVal = Int(arrayOfArguments[operatorPosition - 1])!
+            secondVal = Int(arrayOfArguments[operatorPosition + 1])!
             operatorRawVal = arrayOfArguments[operatorPosition]
             
             switch operatorRawVal {
@@ -79,12 +65,12 @@ class Calculator {
             }
             
             ShrikArray(resultVal: resultInt, indexToRemove: operatorPosition)
-            PerformLowPriorityCalculatrion()
+            try PerformLowPriorityCalculatrion()
             break
         }
     }
     
-    private func PerformHighPriorityCalculation() -> Bool{
+    private func PerformHighPriorityCalculation() throws {
         var firstVal: Int
         var secondVal: Int
         var resultInt: Int
@@ -93,31 +79,35 @@ class Calculator {
         
         while operatorPosition < arrayOfArguments.count {
             if IsPriorityOperator(operators: Operators(rawValue: arrayOfArguments[operatorPosition]) ?? Operators.unknown) {
-                firstVal = (arrayOfArguments[operatorPosition - 1] as NSString).integerValue
-                secondVal = (arrayOfArguments[operatorPosition + 1] as NSString).integerValue
+                guard arrayOfArguments.count > 2 else {
+                            throw CalculationError.notEnoughParameters
+                        }
+                firstVal = Int(arrayOfArguments[operatorPosition - 1])!
+                secondVal = Int(arrayOfArguments[operatorPosition + 1])!
                 operatorRawVal = arrayOfArguments[operatorPosition]
                 
                 switch operatorRawVal {
                 case Operators.multiply.rawValue:
                     resultInt = firstVal * secondVal
                 case Operators.devide.rawValue:
-                    if secondVal == 0 {
-                        print("Connot perform devide to zero \(firstVal) / \(secondVal)")
-                        return false
+                    guard secondVal != 0 else {
+                        throw CalculationError.divideByZero(String(firstVal), String(secondVal))
                     }
                     resultInt = firstVal / secondVal
                 default:
+                    guard secondVal != 0 else {
+                        throw CalculationError.divideByZero(String(firstVal), String(secondVal))
+                    }
                     resultInt = firstVal % secondVal
                 }
                 
                 ShrikArray(resultVal: resultInt, indexToRemove: operatorPosition)
-                _ = PerformHighPriorityCalculation()
+                _ = try PerformHighPriorityCalculation()
                 break
             }
             
             operatorPosition = operatorPosition + 2
         }
-        return true
     }
     
     private func ShrikArray(resultVal: Int, indexToRemove: Int) -> Void {
@@ -133,6 +123,15 @@ class Calculator {
             return false
         }
     }
+}
+
+enum CalculationError : Error {
+    case outOfBoundValue(String)
+    case notEnoughParameters
+    case divideByZero(String, String)
+    case notNumber(String)
+    case notOperator(String)
+    case outOfBoundException
 }
 
 enum Operators: String {
